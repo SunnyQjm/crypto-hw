@@ -1,4 +1,5 @@
 const forge = require('node-forge');
+const pki = forge.pki;
 
 const rootPublicKeyPem = "-----BEGIN PUBLIC KEY-----\n" +
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+Wpkr2TsXJk6KadhQmdq\n" +
@@ -119,12 +120,116 @@ function generateKeysAndCertification(self = false) {
 function verifyCert(cert) {
     const pki = forge.pki;
     const rootCert = pki.certificateFromPem(rootCertPem);
+    if (typeof cert === 'string') {
+        return rootCert.verify(pki.certificateFromPem(cert));
+    }
     return rootCert.verify(cert);
+}
+
+/**
+ * 用AES算法加密
+ * @param key
+ * @param iv
+ * @param data
+ * @returns {NodeJS.WritableStream | null | * | string[]}
+ */
+function encryptUseAES(key, iv, data) {
+    const cipher = forge.cipher.createCipher('AES-CBC', key);
+    cipher.start({iv: iv});
+    cipher.update(forge.util.createBuffer(data, 'utf8'));
+    cipher.finish();
+    return cipher.output;
+}
+
+/**
+ * 用AES算法解密
+ * @param key
+ * @param iv
+ * @param hex
+ * @returns {NodeJS.WritableStream | null | * | string[]}
+ */
+function decryptUseAES(key, iv, hex) {
+    const util = forge.util;
+    const cipher = forge.cipher.createDecipher('AES-CBC', key);
+    cipher.start({iv: iv});
+    cipher.update(util.createBuffer(util.hexToBytes(hex)));
+    cipher.finish();
+    return cipher.output;
+}
+
+/**
+ * 拉取证书
+ * @param socket
+ * @returns {Promise<*>}
+ */
+function pullCertification(socket) {
+    return new Promise((resolve, reject) => {
+        // 打开到银行的socket连接
+        socket.open();
+        socket.on('connection', () => {
+            // 连接上银行之后首先获取到证书
+            socket.emit('getCertification');
+        });
+
+        // 接收到银行的证书回调
+        socket.on('responseCertification', data => {
+            if (verifyCert(data.cert)) {
+                resolve(data);
+            } else {
+                reject();
+            }
+            // 验证银行证书的有效性
+            socket.close();
+        });
+    })
+}
+
+/**
+ * 与远端设备协商秘钥
+ * @param socket
+ * @param cert
+ * @param privateKey
+ * @param remotePublicKey
+ * @param identity                  用户身份标识
+ * @returns {Promise<{key: string, iv: string}>}
+ */
+function negotiatedAESKey(socket, cert, privateKey, remotePublicKey, identity) {
+    return new Promise((resolve, reject) => {
+        let key, iv;
+        socket.open();
+        // 生成key，用于AES加密
+        key = forge.random.getBytesSync(16);
+        // 连上之后发送加密后的key给远端，期待远端返回一个iv，把key和iv用作AES加密
+        socket.emit('setKey', {
+            encryptedKey: remotePublicKey.encrypt(key),
+            cert: pki.certificateToPem(cert),
+            identity
+        });
+
+        socket.on('setIv', data => {
+            const encryptedIv = data.encryptedIv;
+            iv = privateKey.decrypt(encryptedIv);
+            resolve({
+                key,
+                iv
+            });
+            socket.close();
+        });
+        socket.on('rejectNegotiatedAESKey', () => {
+            console.log('reject');
+            reject();
+            socket.close();
+        });
+    });
 }
 
 module.exports = {
     rootPublicKeyPem,
     generateKeysAndCertification,
     rootCertPem,
-    verifyCert
+    verifyCert,
+    encryptUseAES,
+    decryptUseAES,
+    negotiatedAESKey,
+    pullCertification
 };

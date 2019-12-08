@@ -2,6 +2,7 @@ const {
     generateKeysAndCertification,
     verifyCert
 } = require('./utils');
+const pki = require('node-forge').pki;
 
 
 //////////////////////////////////////////
@@ -9,5 +10,5 @@ const {
 //////////////////////////////////////////
 
 const testPKI = generateKeysAndCertification();
-const result = verifyCert(testPKI.cert);
+const result = verifyCert(pki.certificateToPem(testPKI.cert));
 console.log(result);
