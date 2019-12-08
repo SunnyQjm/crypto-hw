@@ -1,92 +1,34 @@
 const ioClient = require("socket.io-client");
 const forge = require('node-forge');
+const {
+    generateKeysAndCertification
+} = require('./utils');
 
-socket = ioClient("http://localhost:8002");
 
-const publicKey = "-----BEGIN PUBLIC KEY-----\n" +
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwpbcNYT4gLO2nLP69/mx\n" +
-    "auTDpbyHYpyHUeVKfuZ1qVbMjNS49W1Uqj6hyo3tlVpltzvqDDMM51EQVvQG/Ouy\n" +
-    "f/WTsRXcu3+jT0Ta0KPMV/ET/3qKf+ICSHYHsIjnC1b8BeMSclDWOunsx6vXqrAS\n" +
-    "PkG8WE+hYPYaWjoJ02Ku8BGJJaPxNfjVrM/bySTqOHXZwTNJBqkoebb3e8HFnfpt\n" +
-    "y660wNiWeaTeDr9KC2AGG83Fslfe3gWSIJ7AYs2T8m5FWPy3H2Mv2tbUa/jVY6jy\n" +
-    "Za13tQxBu1ZFJlcFXCSNHOBR1CxNyvybsqqKnRGWUEHDAzSjB8n80xxDLilZM4op\n" +
-    "2QIDAQAB\n" +
-    "-----END PUBLIC KEY-----\n";
-const privateKey = "-----BEGIN RSA PRIVATE KEY-----\n" +
-    "MIIEpQIBAAKCAQEAwpbcNYT4gLO2nLP69/mxauTDpbyHYpyHUeVKfuZ1qVbMjNS4\n" +
-    "9W1Uqj6hyo3tlVpltzvqDDMM51EQVvQG/Ouyf/WTsRXcu3+jT0Ta0KPMV/ET/3qK\n" +
-    "f+ICSHYHsIjnC1b8BeMSclDWOunsx6vXqrASPkG8WE+hYPYaWjoJ02Ku8BGJJaPx\n" +
-    "NfjVrM/bySTqOHXZwTNJBqkoebb3e8HFnfpty660wNiWeaTeDr9KC2AGG83Fslfe\n" +
-    "3gWSIJ7AYs2T8m5FWPy3H2Mv2tbUa/jVY6jyZa13tQxBu1ZFJlcFXCSNHOBR1CxN\n" +
-    "yvybsqqKnRGWUEHDAzSjB8n80xxDLilZM4op2QIDAQABAoIBABfNvphpcMDFuzQG\n" +
-    "LFBDYjmyTGCs5F7iyQbypp9Jb+FMNe+QYiPbwPymdsJBhGu9yC2XDbV6VTzCxN3u\n" +
-    "MiCkcIyIrQ1/oCXroj2jLaVSNEAZxJl/Eww7yI22qpAk3yaa+G977JjBXMOONCHk\n" +
-    "2pgNu92Tywd+jj4/PNAGw4bxTncdZ2QCNEpcSIadLu5dcKWTqSXLchfJnRwgDi1L\n" +
-    "WQeOPe2fIP3pH9EvAE3I2WkYu6Vu2XtoH2wWfeYwQVYd9P6es6QPSQsYJBr+gyIO\n" +
-    "k/xtWBF/eh5pZLZALPM8kG77+UEc8j0ji0u/fNBDEYcY0WZ4inYWO2pGBkqtd6x6\n" +
-    "3jejogECgYEA6GC1LCpjy1tf/T2s/shSGzG82bOJ8HCweWHGNRhzOK41wN+xffaX\n" +
-    "49OjbiWXwhT/jcJnPFSr6E5/S+ARrNXx6ZxxM1gFIv4rdCFtuFBPBce5J+6PJk8Z\n" +
-    "qJ0nKCk3Nan08jV8G3c+OUC9Z+1p2CoK0w8FFztsEYrNj3eviC9MAsECgYEA1l7D\n" +
-    "RMF7Nfj+hlSpOPgARszhkh+Pl2SZ+j4Ux9TGauzWhrPF/7DY4W0sbO9jp9+DX00p\n" +
-    "m3kJIYM+3A4DPFHapUiqY8115a1LWiRcnnbnuBf7SPoz0aOUKboG139cExyBMBol\n" +
-    "Fhb71gP0rZ4dC6vaPY+TzAeWQuG/wzOZwh64JRkCgYEAvdmcywuK4q6xmq1T9Ahn\n" +
-    "hE47c0VKsgTvOQwXqnNiV3GE+yIG2dmouHrFMA1IkkkjjIbCXzjyBeZz++KBrkpQ\n" +
-    "zUKB/aew8qjjiYpyIL6EAT3uWOB/VZYUaXyTbC1YLODA/U2TKsFeNdpdpFYEPpYC\n" +
-    "p/LCfvuOTDqxvL/UyheSK0ECgYEAnR/wOGEokjLjPEqpjlwYt8xMOfJwKSNPyR/f\n" +
-    "02id1pmp1CnIotVY4kJHIcGFZfJqNFw2dwKMMsgkNt7+eCP3Atb0LRrXo3UVmgi0\n" +
-    "6mF1DnZldOQPP0WKv9reUO3E6y0lc8B2Fm7aP8++c9NErt1TpXOrfQzCklstV0Jn\n" +
-    "HOWvS2ECgYEAhYCR2QNrd1EsxWxXTa2NHW7QgNsYAgfdfi6fjOrFMWvxcWIcETPg\n" +
-    "pCfh8zigpBnu8Mts9hFtalh0O/aYUy3NvnjK15j5TmGH1Uk/EeO9lcg55+ECmi2c\n" +
-    "BEA/NMhxBW8pgDKUXiRIc4kaOD9JBnoF4I6LzxG8FW0c/RHiVkOFIHY=\n" +
-    "-----END RSA PRIVATE KEY-----\n";
+const businessSocket = ioClient("http://localhost:8002");
+const bankSocket = ioClient("http://localhost:8001", {
+    autoConnect: false
+});
 
-/**
- * 生成公私钥对和证书
- * @returns {{privateKey: *, cert: *, publicKey: *}}
- */
-function generateKeysAndCertification() {
+
+let bankCertificationPromise = new Promise((resolve, reject) => {
+    // 打开到银行的socket连接
+    bankSocket.open();
+    bankSocket.on('connection', () => {
+        // 连接上银行之后首先获取到证书
+        bankSocket.emit('getBankCertification');
+    });
+
     const pki = forge.pki;
-    const keys = pki.rsa.generateKeyPair(2048);
-    const cert = pki.createCertificate();
-    cert.publicKey = keys.publicKey;
-    cert.serialNumber = 1;      // 标号
-    cert.validity.notBefore = new Date();
-    cert.validity.notAfter = new Date();
-    cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
-    const attrs = [{
-        name: 'commonName',
-        value: 'example.org'
-    }, {
-        name: 'countryName',
-        value: 'ZH'
-    }, {
-        shortName: 'ST',
-        value: 'ShenZheng'
-    }, {
-        name: 'localityName',
-        value: 'Test'
-    }, {
-        name: 'organizationName',
-        value: 'Test'
-    }, {
-        shortName: 'OU',
-        value: 'Test'
-    }];
-    cert.setSubject(attrs);
-    cert.setIssuer(attrs);
+    pki.verifyCertificateChain()
+    // 接收到银行的证书回调
+    bankSocket.on('responseBankCertification', data => {
+        // 验证银行证书的有效性
+        bankSocket.close();
+    });
+});
 
-    // 用CA的根证书给证书签名
-    const caRootPrivateKey = pki.privateKeyFromPem(privateKey);
-    cert.sign(caRootPrivateKey);
-
-    return {
-        privateKey: pki.privateKeyToPem(keys.privateKey),
-        publicKey: pki.publicKeyToPem(keys.publicKey),
-        cert: pki.certificateToPem(cert)
-    };
-}
-
-socket.on('connection', () => {
+businessSocket.on('connection', () => {
     console.log('connected');
     const pki = generateKeysAndCertification();
 
@@ -102,8 +44,38 @@ socket.on('connection', () => {
         count: 4                // 数量为4
     };
 
-    forge.md5
-    socket.emit('placingOrder', );
+    const bankInfoMD = forge.md.sha256.create()
+        .update(JSON.stringify(bankInfo))
+        .digest().toHex();
+
+    const commodityInfoMD = forge.md.sha256.create()
+        .update(JSON.stringify(commodityInfo))
+        .digest().toHex();
+
+    const doubleMD = forge.md.sha256.create()
+        .update(bankInfoMD)
+        .update(commodityInfoMD);
+
+    // 得到双重签名
+    const doubleSignature = pki.privateKey.sign(doubleMD);
+
+    // 传送给银行的信息（传给商家，用用户的私钥加密）
+    const dataToBank = {
+        bankInfo,
+        commodityInfoMD,
+        doubleSignature,
+        cert: forge.pki.certificateToPem(pki.cert)
+    };
+
+    // 传递给商家的信息（包含加密后的传递给银行的信息）
+    const dataToBusiness = {
+        commodityInfo,
+        bankInfoMD,
+        doubleSignature,
+        cert: forge.pki.certificateToPem(pki.cert)
+    };
+
+    socket.emit('placingOrder', dataToBusiness);
 });
 socket.on('placingOrder', () => {
     console.log('echo test');
