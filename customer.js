@@ -107,19 +107,6 @@ function buyCommodity(bankInfo, commodityId, count, businessCert, bankCert, cBuK
         // 得到双重签名
         const doubleSignature = customerPKI.privateKey.sign(doubleMD);
 
-
-        const result = customerPKI.cert.publicKey.verify(doubleMD.digest().bytes(), doubleSignature);
-        console.log(doubleMD.digest().bytes());
-        console.log(typeof doubleSignature);
-        console.log(doubleSignature);
-        // console.log(customerPKI.cert.publicKey);
-        console.log('验证结果', result);
-
-        // // 证书中抽取证书中的公钥
-        // const businessPublicKey = pki.certificateFromPem(businessCert).publicKey;
-        // const bankPublicKey = pki.certificateFromPem(bankCert).publicKey;
-
-
         // 传送给银行的信息（传给商家，用用户的私钥加密）
         const dataToBank = {
             bankInfo,
@@ -217,57 +204,3 @@ pullCertification(bankSocket)
     .catch(err => {
         console.log('获取到商家证书但验证失败', err);
     });
-
-
-// businessSocket.on('connection', () => {
-//     console.log('connected');
-//     const pki = generateKeysAndCertification();
-//
-//     // 银行卡信息
-//     const bankInfo = {
-//         bankID: '621745652301254',
-//         password: '123456',
-//     };
-//
-//     // 商品信息
-//     const commodityInfo = {
-//         id: 1,                  // 购买id为1的数据
-//         count: 4                // 数量为4
-//     };
-//
-//     const bankInfoMD = forge.md.sha256.create()
-//         .update(JSON.stringify(bankInfo))
-//         .digest().toHex();
-//
-//     const commodityInfoMD = forge.md.sha256.create()
-//         .update(JSON.stringify(commodityInfo))
-//         .digest().toHex();
-//
-//     const doubleMD = forge.md.sha256.create()
-//         .update(bankInfoMD)
-//         .update(commodityInfoMD);
-//
-//     // 得到双重签名
-//     const doubleSignature = pki.privateKey.sign(doubleMD);
-//
-//     // 传送给银行的信息（传给商家，用用户的私钥加密）
-//     const dataToBank = {
-//         bankInfo,
-//         commodityInfoMD,
-//         doubleSignature,
-//         cert: forge.pki.certificateToPem(pki.cert)
-//     };
-//
-//     // 传递给商家的信息（包含加密后的传递给银行的信息）
-//     const dataToBusiness = {
-//         commodityInfo,
-//         bankInfoMD,
-//         doubleSignature,
-//         cert: forge.pki.certificateToPem(pki.cert)
-//     };
-//
-//     socket.emit('placingOrder', dataToBusiness);
-// });
-// socket.on('placingOrder', () => {
-//     console.log('echo test');
-// });
