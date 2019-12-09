@@ -3,8 +3,8 @@ const forge = require('node-forge');
 const pki = forge.pki;
 const {
     generateKeysAndCertification,
-    verifyCert,
     encryptUseAES,
+    decryptUseAES,
     negotiatedAESKey,
     pullCertification
 } = require('./utils');
@@ -19,52 +19,6 @@ const bankSocket = ioClient("http://localhost:8001", {
 
 // 生成客户的公私密钥对和证书
 const customerPKI = generateKeysAndCertification();
-
-// /**
-//  * 去银行拉取证书，成功则返回证书pem
-//  * @type {Promise<{cert: *}>}
-//  */
-// const bankCertificationPromise = new Promise((resolve, reject) => {
-//     // 打开到银行的socket连接
-//     bankSocket.open();
-//     bankSocket.on('connection', () => {
-//         // 连接上银行之后首先获取到证书
-//         bankSocket.emit('getBankCertification');
-//     });
-//
-//     // 接收到银行的证书回调
-//     bankSocket.on('responseBankCertification', data => {
-//         if (verifyCert(data.cert)) {
-//             resolve(data);
-//         } else {
-//             reject();
-//         }
-//         // 验证银行证书的有效性
-//         bankSocket.close();
-//     });
-// });
-//
-// /**
-//  * 拉取商家的证书并验证
-//  * @type {Promise<{cert: *}>}
-//  */
-// const businessCertificationPromise = new Promise((resolve, reject) => {
-//     // 打开商家的socket连接
-//     businessSocket.open();
-//     businessSocket.on('connection', () => {
-//         // 连上商家之后首先获取到证书
-//         businessSocket.emit('getBusinessCertification');
-//     });
-//     businessSocket.on('responseBusinessCertification', data => {
-//         if (verifyCert(data.cert)) {
-//             resolve(data);
-//         } else {
-//             reject();
-//         }
-//         businessSocket.close();
-//     })
-// });
-
 
 // 银行卡信息
 const bankInfo = {
@@ -107,15 +61,15 @@ function buyCommodity(bankInfo, commodityId, count, businessCert, bankCert, cBuK
         // 得到双重签名
         const doubleSignature = customerPKI.privateKey.sign(doubleMD);
 
-        // 传送给银行的信息（传给商家，用用户的私钥加密）
+        // 传送给银行的信息（传给商家）
         const dataToBank = {
             bankInfo,
             commodityInfoMD,
-            doubleSignature: forge.util.bytesToHex(doubleSignature),
+            doubleSignature: forge.util.bytesToHex(doubleSignature),            // 先将签名数据转为hex，用JSON进行转换的时候不会数据丢失
             cert: forge.pki.certificateToPem(customerPKI.cert)
         };
 
-        // 传递给商家的信息（包含加密后的传递给银行的信息）
+        // 传递给商家的信息（包含加密后传递给银行的信息）
         const dataToBusiness = {
             commodityInfo,
             bankInfoMD,
@@ -133,11 +87,23 @@ function buyCommodity(bankInfo, commodityId, count, businessCert, bankCert, cBuK
                 .toHex()
         );
 
+        let isResponse = false;
         // 等待下订单的结果
-        businessSocket.on('responsePlacingOrder', data => {
+        businessSocket.on('responsePlacingOrder', encrypted => {
+            isResponse = true;
+            businessSocket.close();
+            const data = JSON.parse(decryptUseAES(cBuKey.key, cBuKey.iv, encrypted));
+            if(data.code === 0) {
+                resolve();
+            } else {
+                reject(data.errMsg)
+            }
             console.log('下单结果', data);
         });
 
+        setTimeout(() => {
+            businessSocket.open();
+        }, 2000);
     });
 }
 
@@ -146,7 +112,7 @@ pullCertification(bankSocket)
 ////// 获取银行证书
 //////////////////////////////////////
     .then(bankRes => {
-        console.log('获取到银行证书并验证成功 => ');
+        console.log('获取到银行证书并验证成功');
         return pullCertification(businessSocket)
             .then(res => {
                 return {
@@ -162,7 +128,7 @@ pullCertification(bankSocket)
     ////// 获取商家证书
     //////////////////////////////////////
     .then(certs => {
-        console.log('获取到商家证书并验证成功 => ');
+        console.log('获取到商家证书并验证成功');
         return negotiatedAESKey(businessSocket, customerPKI.cert, customerPKI.privateKey, pki.certificateFromPem(certs.businessCert).publicKey, 'c-bu')
             .then(res => {
                 return {
@@ -170,6 +136,9 @@ pullCertification(bankSocket)
                     cBuKey: res
                 }
             });
+    })
+    .catch(err => {
+        console.log('获取到商家证书但验证失败', err);
     })
     //////////////////////////////////////
     ////// 与商家协商秘钥
@@ -191,16 +160,21 @@ pullCertification(bankSocket)
     ////// 与银行协商秘钥
     //////////////////////////////////////
     .then(res => {
-        console.log('与银行协商秘钥成功', res);
-        return buyCommodity(bankInfo, 1, 4, res.businessCert, res.bankCert, res.cBuKey, res.cBaKey);
+        console.log('与银行协商秘钥成功');
+        return buyCommodity(bankInfo, 1, 4, res.businessCert, res.bankCert, res.cBuKey, res.cBaKey)
+            .then(res => {
+                return {
+                    commodityId: 1,
+                    count: 4,
+                };
+            });
     })
     .catch(err => {
-        console.log('与银行协商秘钥失败', err);
+        console.log(err);
     })
     .then(res => {
-        console.log('购买成功', res);
-        console.log(res);
+        console.log(`购买商品 id = ${res.commodityId} x ${res.count} 成功`);
     })
     .catch(err => {
-        console.log('获取到商家证书但验证失败', err);
+        console.log('购买商品失败: ', err);
     });

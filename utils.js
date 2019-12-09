@@ -127,6 +127,41 @@ function verifyCert(cert) {
 }
 
 /**
+ * 验证双重签名是否有效
+ * @param info                  可见的明文信息
+ * @param md                    不可见部分的hash
+ * @param cert                  构建双重签名用户的证书
+ * @param doubleSignature       双重签名
+ * @param reverse
+ * @returns {*}
+ */
+function verifyDoubleSignature(info, md, cert, doubleSignature, reverse = false) {
+    const commodityInfoMD = forge.md.sha256.create()
+        .update(JSON.stringify(info))
+        .digest().toHex();
+
+    let doubleMD = forge.md.sha256.create();
+    if (!reverse) {
+        doubleMD = doubleMD
+            .update(md)
+            .update(commodityInfoMD);
+    } else {
+        doubleMD = doubleMD
+            .update(commodityInfoMD)
+            .update(md)
+    }
+
+    // 使用用户证书中的公钥验证双重签名的有效性
+    let _cert;
+    if (typeof cert === 'string') {
+        _cert = forge.pki.certificateFromPem(cert);
+    } else {
+        _cert = cert;
+    }
+    return _cert.publicKey.verify(doubleMD.digest().bytes(), doubleSignature);
+}
+
+/**
  * 用AES算法加密
  * @param key
  * @param iv
@@ -185,6 +220,27 @@ function pullCertification(socket) {
 }
 
 /**
+ * 处理证书拉取请求
+ * @param socket
+ * @param cert
+ */
+function dealPullCertification(socket, cert) {
+    // 监听获取证书的请求
+    socket.on("getCertification", () => {
+        let certPem;
+        if (typeof cert === 'string') {
+            certPem = cert;
+        } else {
+            certPem = pki.certificateToPem(cert);
+        }
+        // 将银行的证书返回
+        socket.emit("responseCertification", {
+            cert: certPem
+        });
+    });
+}
+
+/**
  * 与远端设备协商秘钥
  * @param socket
  * @param cert
@@ -216,10 +272,47 @@ function negotiatedAESKey(socket, cert, privateKey, remotePublicKey, identity) {
             socket.close();
         });
         socket.on('rejectNegotiatedAESKey', () => {
-            console.log('reject');
             reject();
             socket.close();
         });
+    });
+}
+
+/**
+ * 处理秘钥协商
+ * @param socket
+ * @param privateKey
+ * @param keyCallback
+ */
+function dealNegotiatedAESKey(socket, privateKey, keyCallback) {
+    socket.on('setKey', data => {
+        const {
+            encryptedKey,
+            cert,
+            identity
+        } = data;
+
+        // 验证证书失败发送拒绝消息
+        if (!verifyCert(cert)) {
+            console.log('fail');
+            socket.emit('rejectNegotiatedAESKey');
+        }
+
+        // 用秘钥解密获得key
+        let key = privateKey.decrypt(encryptedKey);
+        let iv = forge.random.getBytesSync(16);
+        keyCallback({
+            identity,
+            keys: {
+                key,
+                iv
+            }
+        });
+        const remotePublicKey = pki.certificateFromPem(cert).publicKey;
+        const response = {
+            encryptedIv: remotePublicKey.encrypt(iv)
+        };
+        socket.emit('setIv', response);
     });
 }
 
@@ -228,8 +321,11 @@ module.exports = {
     generateKeysAndCertification,
     rootCertPem,
     verifyCert,
+    verifyDoubleSignature,
     encryptUseAES,
     decryptUseAES,
     negotiatedAESKey,
-    pullCertification
+    pullCertification,
+    dealNegotiatedAESKey,
+    dealPullCertification,
 };
