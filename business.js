@@ -41,29 +41,6 @@ const businessPKI = generateKeysAndCertification();
 let cBuKey = {};
 let cBbKey = {};
 
-/**
- * 与银行处理转账事宜
- */
-function transferAccounts(socket, cBbKey, dataToBank) {
-    return new Promise((resolve, reject) => {
-        socket.open();
-        socket.emit('transferAccounts',
-            encryptUseAES(cBbKey.key, cBbKey.iv, JSON.stringify(dataToBank)).toHex()
-        );
-
-        // 等待银行返回数据
-        socket.on('responseTransferAccounts', encrypted => {
-            const data = JSON.parse(decryptUseAES(cBbKey.key, cBbKey.iv, encrypted));
-            console.log(data);
-            if(data.code === 0) {
-                resolve();
-            } else {
-                reject(data.errMsg);
-            }
-        });
-    });
-}
-
 
 /**
  * 处理下单
@@ -153,6 +130,30 @@ function dealPlacingOrder(socket, cBuKey) {
     socket.on('disconnect', reason => {
         // console.log('disconnect', reason);
     })
+}
+
+
+/**
+ * 与银行处理转账事宜
+ */
+function transferAccounts(socket, cBbKey, dataToBank) {
+    return new Promise((resolve, reject) => {
+        socket.open();
+        socket.emit('transferAccounts',
+            encryptUseAES(cBbKey.key, cBbKey.iv, JSON.stringify(dataToBank)).toHex()
+        );
+
+        // 等待银行返回数据
+        socket.on('responseTransferAccounts', encrypted => {
+            const data = JSON.parse(decryptUseAES(cBbKey.key, cBbKey.iv, encrypted));
+            console.log(data);
+            if(data.code === 0) {
+                resolve();
+            } else {
+                reject(data.errMsg);
+            }
+        });
+    });
 }
 
 

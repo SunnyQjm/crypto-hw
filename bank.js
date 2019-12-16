@@ -79,12 +79,10 @@ function dealTransferAccounts(socket, cBaKey, cBbKey) {
                 return;
             }
 
-            console.log('------------------扣款前信息-----------------');
-            console.log(userInfo);
+            console.log('扣款前信息：', userInfo);
             userInfo[toCount.bankID].money += money;
             userInfo[paymentInformation.bankInfo.bankID].money -= money;
-            console.log('------------------扣款后信息-----------------');
-            console.log(userInfo);
+            console.log('扣款后信息：', userInfo);
             socket.emit('responseTransferAccounts',
                 encryptUseAES(cBbKey.key, cBbKey.iv, JSON.stringify({
                         code: 0,
